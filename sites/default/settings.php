@@ -635,8 +635,8 @@ ini_set('session.cookie_lifetime', 2000000);
 # }
 $databases['default']['default'] = array (
   'database' => 'gai',
-  'username' => 'gai',
-  'password' => 'gai',
+  'username' => 'drupal',
+  'password' => 'drupal123',
   'prefix' => '',
   'host' => 'localhost',
   'port' => '3306',
