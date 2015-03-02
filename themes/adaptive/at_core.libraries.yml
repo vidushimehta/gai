@@ -1,0 +1,184 @@
+# Window size widget (AT Core)
+at.windowsize:
+  version: 8.x-1.0
+  css:
+    component:
+      styles/css/at.windowSize.css: {}
+  js:
+    scripts/min/at.windowSize.min.js: { minified: true }
+    #scripts/at.windowSize.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+
+# matchHeight
+at.matchheight:
+  version: 0.5.2
+  license:
+    name: MIT
+    url: https://raw.githubusercontent.com/liabru/jquery-match-height/master/LICENSE
+    gpl-compatible: true
+  js:
+    scripts/min/jquery.matchHeight.min.js: { minified: true }
+  dependencies:
+    - core/jquery
+
+# enquire
+# Issued opened to add licence to project: https://github.com/WickyNilliams/enquire.js/issues/126
+at.enquire:
+  version: 2.1.2
+  license:
+    name: MIT
+    url: http://opensource.org/licenses/mit-license.php
+    gpl-compatible: true
+  js:
+    scripts/min/enquire.min.js: { minified: true }
+  dependencies:
+    - core/matchmedia
+
+# doubleTapToGo
+at.doubletaptogo:
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://raw.githubusercontent.com/dachcom-digital/jquery-doubleTapToGo/master/LICENSE
+    gpl-compatible: true
+  js:
+    scripts/min/doubleTapToGo.min.js: { minified: true }
+  dependencies:
+    - core/jquery
+
+# Fastclick
+at.fastclick:
+  version: 1.0.3
+  license:
+    name: MIT
+    url: https://raw.githubusercontent.com/ftlabs/fastclick/master/LICENSE
+    gpl-compatible: true
+  js:
+    scripts/min/fastclick.min.js: { minified: true }
+  dependencies:
+    - core/jquery
+
+# Fastclick initialize
+at.fastclick_initialize:
+  version: 1.0.3
+  js:
+    scripts/min/at.fastclickInitialize.min.js: { minified: true }
+  dependencies:
+    - at_core/at.fastclick
+    - core/jquery
+
+# Breakpoints
+at.breakpoints:
+  #header: true
+  version: 8.x-1.0
+  js:
+    scripts/min/at.breakpoints.min.js: { minified: true }
+    #scripts/at.breakpoints.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/drupalSettings
+    - core/matchmedia
+    - at_core/at.enquire
+
+# Responsive Menus
+at.responsivemenus:
+  version: 8.x-1.0
+  js:
+    scripts/min/at.responsiveMenus.min.js: { minified: true }
+    #scripts/at.responsiveMenus.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/drupalSettings
+    - core/matchmedia
+    - at_core/at.enquire
+
+# Slidedshow
+at.slideshow:
+  version: 2.3.0
+  js:
+    scripts/min/jquery.flexslider.min.js: { minified: true }
+    scripts/min/at.flexsliderSettings.min.js: { minified: true }
+    #scripts/jquery.flexslider.js: {}
+    #scripts/at.flexsliderSettings.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/drupalSettings
+
+# Video - responsive YouTube and Vimeo iframes. This is pretty rough
+# and only works OK, the CSS method in the UIKit is better.
+at.responsivevideo:
+  version: 8.x-1.0
+  js:
+    scripts/at.responsiveVideo.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+
+# Respond TODO: test with respond in IE8.
+at.respond:
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://raw.githubusercontent.com/scottjehl/Respond/master/LICENSE-MIT
+    gpl-compatible: true
+  js:
+    scripts/min/respond.min.js: { minified: true, browsers: { IE: 'lte IE 8', '!IE': false } }
+
+# Selectivizr TODO: test with IE8.
+at.selectivizr:
+  version: 1.0.2
+  license:
+    name: MIT
+    url: http://opensource.org/licenses/mit-license.php
+    gpl-compatible: true
+  js:
+    scripts/min/at.selectivizr.min.js: { minified: true, browsers: { IE: 'lte IE 8', '!IE': false } }
+  dependencies:
+    - at_core/at.yui3
+
+# test with YUI3 for selectivizr
+at.yui3:
+  remote: https://github.com/yui/yui3
+  license:
+    name: BSD
+    url: https://raw.githubusercontent.com/yui/yui3/master/LICENSE.md
+    gpl-compatible: true
+  version: 3.18.0
+  js:
+    http://yui.yahooapis.com/3.18.1/build/yui/yui-min.js:  { type: external, browsers: { IE: 'lte IE 8', '!IE': false } }
+
+# AT Core libs for theme dev.
+at.devel_debug_layout:
+  version: 8.x-1.0
+  css:
+    theme:
+      styles/css/at.devel.debug.layout.css: {}
+
+at.devel_colorize_regions:
+  version: 8.x-1.0
+  css:
+    theme:
+      styles/css/at.devel.colorize.regions.css: {}
+
+at.devel_nuke_toolbar:
+  version: 8.x-1.0
+  css:
+    theme:
+      styles/css/at.devel.nuke.toolbar.css: {}
+
+# Appearance settings scripts
+at.appearance_settings:
+  version: 8.x-1.0
+  css:
+    theme:
+      styles/css/at.appearance.css: {}
+  js:
+    scripts/min/at.appearance.min.js: { minified: true }
+  dependencies:
+    - core/jquery
+    - core/drupal

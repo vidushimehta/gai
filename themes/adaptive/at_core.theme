@@ -1,0 +1,1146 @@
+<?php
+
+use Drupal\Core\Template\Attribute;
+use Drupal\Core\Language\Language;
+use Drupal\Core\Theme\ThemeSettings;
+use Drupal\Core\Url;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\user\UserInterface;
+use Drupal\image\Entity\ImageStyle;
+use Drupal\Component\Utility\String;
+use Drupal\Component\Utility\Xss;
+use Drupal\Component\Utility\Tags;
+use Drupal\Component\Utility\Html;
+use Drupal\node\NodeInterface;
+
+
+use Drupal\at_core\Theme\ThemeInfo;
+use Drupal\at_core\Library\SystemLibraries;
+use Drupal\at_core\Library\ThemeLibraries;
+use Drupal\at_core\Layout\Layout;
+use Drupal\at_core\Layout\LayoutLoad;
+
+/**
+ * Alter attachments (typically assets) to a page before it is rendered.
+ *
+ * Use this hook when you want to remove or alter attachments on the page, or
+ * add attachments to the page that depend on another module's attachments (this
+ * hook runs after hook_page_attachments().
+ *
+ * @param array &$page
+ *   An empty renderable array representing the page.
+ *
+ * @see hook_page_attachments_alter()
+ */
+function at_core_page_attachments_alter(array &$page) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  if ($theme === 'seven') {
+    return;
+  }
+
+  // Common paths.
+  $path_to_theme = \Drupal::theme()->getActiveTheme()->getPath();
+  $path_to_at_core = drupal_get_path('theme', 'at_core');
+
+  if (!empty($config['generated_files_path'])) {
+    $generated_files_path = $config['generated_files_path'];
+  }
+  else {
+    drupal_set_message(t('The path to generated CSS files is not saved in configuration, try saving your themes Appearance settings.'), 'error');
+  }
+
+  // Load this themes base library.
+  $page['#attached']['library'][] = "$theme/base";
+
+  // Attach module dependant libraries.
+  // These libraries are declared in your themeName.libraries.yml
+  // and we only load if the module is installed. Unlike core
+  // these files will load on every page, so when CSS aggregation
+  // is on there will only be one CSS aggregate for the theme.
+  $module_libraries = array(
+    'aggregator',
+    'book',
+    'comment',
+    'forum',
+    'search',
+    'taxonomy',
+  );
+  foreach ($module_libraries as $module_library) {
+    if (\Drupal::moduleHandler()->moduleExists($module_library) == TRUE) {
+      $page['#attached']['library'][] = "$theme/$module_library";
+    }
+  }
+
+  // Color library.
+  // We load this always, if color module is enabled it will rewrite the files
+  // from this library (as declared in color.inc etc).
+  $page['#attached']['library'][] = "$theme/color";
+
+  // We always load fastclick, at least for now this is a hard requirement of the theme.
+  $page['#attached']['library'][] = 'at_core/at.fastclick_initialize';
+
+  // Always load at.breakpoints.js, this sets layout breakpoint body classes.
+  $page['#attached']['library'][] = 'at_core/at.breakpoints';
+
+  // Process extension settings.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+
+    // Fonts.
+    if (isset($config['enable_fonts']) && $config['enable_fonts'] === 1) {
+      if (file_exists($generated_files_path . '/fonts.css')) {
+        $page['#attached']['library'][] = "$theme/fonts";
+      }
+    }
+
+    // Titles.
+    if (isset($config['enable_titles']) && $config['enable_titles'] === 1) {
+      if (file_exists($generated_files_path . '/title-styles.css')) {
+        $page['#attached']['library'][] = "$theme/title_styles";
+      }
+    }
+
+    // Breadcrumbs.
+    if (!empty($config['breadcrumb_separator'])) {
+      if (file_exists($generated_files_path . '/breadcrumb.css')) {
+        $page['#attached']['library'][] = "$theme/breadcrumb";
+      }
+    }
+
+    // Login block.
+    if (\Drupal::currentUser()->isAuthenticated() === FALSE) {
+      if (isset($config['horizontal_login_block']) && $config['horizontal_login_block'] === 1) {
+        if (file_exists($generated_files_path . '/login-block.css')) {
+          $page['#attached']['library'][] = "$theme/login_block";
+        }
+      }
+    }
+
+    // Custom CSS.
+    if (isset($config['enable_custom_css']) && $config['enable_custom_css'] === 1) {
+      if (file_exists($generated_files_path . '/custom-css.css')) {
+        $page['#attached']['library'][] = "$theme/custom_css";
+      }
+    }
+
+    // Attach Windowsize library
+    if (isset($config['show_window_size']) && $config['show_window_size'] === 1) {
+      $page['#attached']['library'][] = 'at_core/at.windowsize';
+    }
+
+    // Attach devel_layout CSS file.
+    if (isset($config['devel_layout']) && $config['devel_layout'] === 1) {
+       $page['#attached']['library'][] = 'at_core/at.devel_debug_layout';
+    }
+
+    // Attach devel_colorize-regions CSS file.
+    if ((isset($config['devel_color_regions']) && $config['devel_color_regions'] === 1) && (isset($config['devel_layout']) && $config['devel_layout'] === 0)) {
+      $page['#attached']['library'][] = 'at_core/at.devel_colorize_regions';
+    }
+
+    // Attach nuke_toolbar CSS file.
+    if (isset($config['nuke_toolbar']) && $config['nuke_toolbar'] === 1) {
+      $page['#attached']['library'][] = 'at_core/at.devel_nuke_toolbar';
+    }
+
+    // Shortcodes
+    if (isset($config['enable_shortcodes']) && $config['enable_shortcodes'] === 1) {
+      $page['#attached']['library'][] = "$theme/shortcodes";
+    }
+
+    // Add the responsive menu styles settings.
+    if (isset($config['enable_responsive_menus']) && $config['enable_responsive_menus'] == 1) {
+
+      // Load RM JS and CSS styles.
+      $page['#attached']['library'][] = "at_core/at.responsivemenus";
+      $page['#attached']['library'][] = "$theme/responsive_menus";
+
+      $responsivemenu_settings = array();
+
+      // Breakpoint
+      if (isset($config['responsive_menu_breakpoint'])) {
+        $responsivemenu_settings['bp'] = $config['responsive_menu_breakpoint'];
+      }
+
+      // Loop the config settings and build an array for drupalSettings.
+      foreach (array('default', 'responsive') as $style) {
+        if (isset($config['responsive_menu_' . $style . '_style'])) {
+          $responsivemenu_settings[$style] = 'ms-' . $config['responsive_menu_' . $style . '_style'];
+        }
+      }
+
+      // Attach JS settings.
+      $page['#attached']['drupalSettings']['at_rm'] = $responsivemenu_settings;
+    }
+
+    // Attach polyfills to support IE8.
+    if (isset($config['enable_legacy_browsers']) && $config['enable_legacy_browsers'] === 1) {
+      if (isset($config['legacy_browser_polyfills']) && $config['legacy_browser_polyfills'] === 1) {
+        $page['#attached']['library'][] = 'at_core/at.respond';
+        $page['#attached']['library'][] = 'at_core/at.selectivizr'; // this will load yui3 as a dependancy because it supports IE8 and Selectivizr runs way better on yui3.
+      }
+    }
+
+    // Load slideshow files
+    if (isset($config['enable_slideshows']) && $config['enable_slideshows'] == 1) {
+
+      // Get config settings and jam them into drupalSettings.
+      if (isset($config['slideshow_count']) && $config['slideshow_count'] >= 1) {
+
+        $basic_slider_settings = array(
+          'animation',
+          'direction',
+          'smoothheight',
+          'slideshowspeed',
+          'animationspeed',
+          'controlnav',
+          'directionnav',
+        );
+
+        $carousel_settings = array(
+          'as_carousel',
+          'itemwidth',
+          'itemmargin',
+          'minitems',
+          'maxitems',
+          'move',
+        );
+
+        $advanced_slider_settings = array(
+          'pauseonaction',
+          'pauseonhover',
+          'animationloop',
+          'reverse',
+          'randomize',
+          'autostart', // Flexslider calls this "slideshow"
+          'initdelay',
+          'easing',
+          'usecss',
+          'touch',
+          'video',
+          'prevtext',
+          'nexttext',
+          'selector',
+        );
+
+        for ($i = 0; $i < $config['slideshow_count']; $i++) {
+
+          // Set the initialaztion class and this slideshows key
+          $ss_class = Html::getClass($theme . '-slideshow-' . $i);
+          $slider_settings[$ss_class]['classname'] = $ss_class;
+
+          if (isset($config['slideshow_' . $i . '_enable']) && $config['slideshow_' . $i . '_enable'] == 1) {
+
+            // Basic settings
+            foreach ($basic_slider_settings as $basic_slider_setting) {
+              if (isset($config['slideshow_' . $i . '_' . $basic_slider_setting])) {
+                $slider_settings[$ss_class][$basic_slider_setting] = $config['slideshow_' . $i . '_' . $basic_slider_setting];
+              }
+            }
+
+            // As Carousel
+            if (isset($config['slideshow_' . $i . '_as_carousel']) && $config['slideshow_' . $i . '_as_carousel'] == 1) {
+              foreach ($carousel_settings as $carousel_setting) {
+                if (isset($config['slideshow_' . $i . '_' . $carousel_setting])) {
+                  $slider_settings[$ss_class][$carousel_setting] = $config['slideshow_' . $i . '_' . $carousel_setting];
+                }
+              }
+
+              // Reset options for carousels, fade won't work and vertical causes issues with Flexslider.
+              $slider_settings[$ss_class]['animation'] = 'slide';
+              $slider_settings[$ss_class]['direction'] = 'horizonal';
+            }
+
+            // Advanced options
+            if (isset($config['slideshow_' . $i . '_advanced_options']) && $config['slideshow_' . $i . '_advanced_options'] == 1) {
+              foreach ($advanced_slider_settings as $advanced_slider_setting) {
+                if (isset($config['slideshow_' . $i . '_' . $advanced_slider_setting])) {
+                  $slider_settings[$ss_class][$advanced_slider_setting] = $config['slideshow_' . $i . '_' . $advanced_slider_setting];
+                }
+              }
+            }
+          }
+        }
+
+        // Attach JS settings.
+        $page['#attached']['drupalSettings']['at_ss'] = $slider_settings;
+        $page['#attached']['library'][] = 'at_core/at.slideshow';
+        $page['#attached']['library'][] = "$theme/slideshow_styles";
+      }
+    }
+  }
+}
+
+
+/**
+ * Alter CSS files before they are output on the page.
+ *
+ * @param $css
+ *   An array of all CSS items (files and inline CSS) being requested on the page.
+ *
+ * @see _drupal_add_css()
+ * @see drupal_get_css()
+ */
+function at_core_css_alter(&$css) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Individual CSS files to remove.
+  // Sometimes we don't want to remove the entire library as it may
+  // load dependancies we need, so we can use this more granular
+  // approach to remove individual CSS assets.
+  $remove = array(
+    'book.theme.css',
+    'comment.theme.css',
+    'file.formatter.generic.css',
+    'forum.theme.css',
+    'search.theme.css',
+    'system.theme.css',
+    'taxonomy.theme.css',
+  );
+  foreach ($remove as $file) {
+    if (array_key_exists($file, $css)) {
+      unset($css[$file]);
+    }
+  }
+
+  // Layout
+  // This determines the page suggestion for the current page and checks if there is an
+  // existing config key for that suggestion, then loads a layout CSS file appropriatly.
+  if (isset($config['layouts_enable']) && $config['layouts_enable'] === 1) {
+
+    // If we don't have the base path to generated files throw an error.
+    if (!empty($config['generated_files_path'])) {
+      $generated_files_path = $config['generated_files_path'];
+    }
+    else {
+      drupal_set_message(t('The path to generated CSS files is not saved in configuration, try saving your themes layout settings.'), 'error');
+    }
+
+    // Get theme registry.
+    $theme_registry = \Drupal::service('theme.registry')->getRuntime();
+
+    // Build an array of path arguments to pass to theme_get_suggestions()
+    $path = \Drupal::request()->getPathInfo();
+    $path_args = explode('/', $path);
+
+    // This is the front page.
+    // $is_front_page =  \Drupal::service('path.matcher')->isFrontPage();
+    if (empty($path_args[1])) {
+      $path_args = [''];
+    }
+
+    // Unset the first item in the array, othewise delimeters are doubled, don't ask me why.
+    unset($path_args[0]);
+    $path_args = array_values($path_args);
+
+    // Add node type suggestion.
+    if ($node = \Drupal::routeMatch()->getParameter('node')) {
+      $path_args[] = $node->getType();
+    }
+
+    // Get page suggestions, loop, check for a config key and break
+    // if/when we have a match in the registry.
+    if ($suggestions = theme_get_suggestions($path_args, 'page')) {
+      foreach ($suggestions as $suggestion) {
+        if (isset($config['suggestions'][$suggestion])) {
+          $suggestions_layout = $config['suggestions'][$suggestion];
+          $suggestions_layout = str_replace('_', '-', $suggestions_layout);
+        }
+        if ($theme_registry->has($suggestion)) {
+          break;
+        }
+      }
+    }
+
+    // Get the layout, fallback to the default layout if for some reason it does
+    // not exists, perhaps it was deleted by mistake etc.
+    if (isset($suggestions_layout) && file_exists($generated_files_path . '/' . $theme . '.layout.'  . $suggestions_layout . '.css')) {
+      $layout = $theme . '.layout.'  . $suggestions_layout . '.css';
+    }
+    else {
+      $layout = $theme . '.layout.page.css';
+    }
+
+    // And you thought loading CSS assets in Drupal was getting easier?
+    $css[$layout] = array(
+      'weight' => 0,
+      'group' => 100,
+      'type' => 'file',
+      'data' => $generated_files_path . '/' . $layout,
+      'version' => '8.0.0-dev',
+      'every_page' => false,
+      'media' => 'all',
+      'preprocess' => true,
+      'browsers' => array ('IE' => true, '!IE' => true),
+      'basename' => $layout,
+    );
+  }
+
+  // Color module doesn't know anything about libraries loaded in hook_page_attachments_alter(),
+  // therefor we need to load the colorized CSS file ourselves.
+  if (\Drupal::moduleHandler()->moduleExists('color') == TRUE) {
+    $color_paths = \Drupal::config('color.theme.' . $theme)->get('stylesheets');
+    if (!empty($color_paths)) {
+      foreach ($color_paths as $color_path) {
+        $basename_color_path = drupal_basename($color_path);
+        if (array_key_exists($basename_color_path, $css)) {
+          $css[$basename_color_path]['data'] = $color_path;
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * Implements hook_theme_suggestions_HOOK_alter().
+ * TODO: keep on on core regarding the alter hook and suggestions - https://drupal.org/node/2100775
+ */
+function at_core_theme_suggestions_page_alter(array &$suggestions, array $variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Add content type suggestions.
+  if ($node = \Drupal::request()->attributes->get('node')) {
+    array_splice($suggestions, 1, 0, 'page__node__' . $node->getType());
+  }
+
+  // Show template suggestions.
+  if (isset($config['show_page_suggestions']) && $config['show_page_suggestions'] === 1) {
+    if ($suggestions) {
+      foreach ($suggestions as $suggestion_name) {
+        $formatted_suggestions[] = '<div>' . str_replace('_', '-', $suggestion_name) . '</div>';
+      }
+      $these_suggestions = implode($formatted_suggestions);
+      drupal_set_message(t('Template suggestions for this page:<br>!these_suggestions <p>To stop showing these turn it off in your themes Appearance settings - see the Devel tab.</p>', array('!these_suggestions' => $these_suggestions)), 'status');
+    }
+  }
+}
+
+
+/**
+ * Implements hook_form_alter().
+ */
+function at_core_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  switch ($form_id) {
+    case 'user_login':
+      if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+        if (isset($config['enable_markup_overrides']) && $config['enable_markup_overrides'] === 1) {
+
+          // Placeholder labels.
+          if (isset($config['login_block_placeholder_labels']) && $config['login_block_placeholder_labels'] === 1) {
+            $form['name']['#attributes']['placeholder'] = $form['name']['#title'];
+            $form['pass']['#attributes']['placeholder'] = $form['pass']['#title'];
+            $form['name']['#title_display'] = 'invisible';
+            $form['pass']['#title_display'] = 'invisible';
+          }
+        }
+      }
+      break;
+
+    //case 'search_block_form':
+      // Add the missing 'search-block-form' class.
+      //$form['#attributes']['class'][] = 'search-block-from';
+
+      // Remove the size value.
+      //$form['keys']['#size'] = '';
+      //$form['keys']['#attributes']['results'] = 3;
+      //$form['keys']['#attributes']['autosave'] = $theme . '-search-results-form-submissions';
+      //kpr($form);
+      //break;
+
+    case 'search_form':
+      // Add the missing 'search-basic' class.
+      $form['basic']['#attributes']['class'][] = 'search-basic';
+      break;
+  }
+}
+
+
+/**
+ * Implements hook_theme_suggestions_HOOK_alter().
+ * TODO: keep on on https://drupal.org/node/2247677, this might add these suggestions in which case
+ * we can remove this.
+ */
+function at_core_theme_suggestions_user_alter(array &$suggestions, array $variables) {
+  $suggestions[] = 'user__' . $variables['elements']['#view_mode'];
+}
+
+
+/**
+ * Preprocess variables for html templates.
+ */
+function at_core_preprocess_html(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Common paths
+  $path_to_theme = $variables['directory'];
+
+  // Add theme variables, we use these to set a class and provide a very easy way for themers to link
+  // to files in the theme, such as background images or other files.
+  $variables['theme']['name'] = String::checkPlain($theme);
+  $variables['theme']['path'] = $path_to_theme;
+
+  // Set the skip navigation target ID
+  $variables['skip_link_target'] = '#block-' . $theme . '-content';
+
+  // Defaults for Appearance setting variables.
+  $variables['touch_icons'] = FALSE;
+  $variables['googlefonts_url'] = '';
+  $variables['typekit_id'] = '';
+
+  // Extensions
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+
+    // Skip navigation target setting.
+    if (isset($config['skip_link_target'])) {
+      $variables['skip_link_target'] = '#' . Html::getClass($config['skip_link_target']);
+    }
+
+    // Apple touch icons - low, medium and high (see the Apple docs on touch icons).
+    if (isset($config['enable_touch_icons']) && $config['enable_touch_icons'] === 1) {
+
+      $variables['touch_icons'] = TRUE;
+      $variables['touch_rel'] = 'apple-touch-icon';
+
+      if (isset($config['apple_touch_icon_precomposed']) && $config['apple_touch_icon_precomposed'] === 1) {
+        $variables['touch_rel'] = 'apple-touch-icon-precomposed';
+      }
+
+      // Apple default icon and Nokia shortcut icon.
+      if (isset($config['icon_path_default']) && !empty($config['icon_path_default'])) {
+        $default_icon = file_create_url($path_to_theme . '/' . String::checkPlain($config['icon_path_default']));
+        $variables['touch_icon_nokia'] = $default_icon;
+        $variables['touch_icon_default'] = $default_icon;
+      }
+
+      // iPad (standard display).
+      if (isset($config['apple_touch_icon_path_ipad']) && !empty($config['apple_touch_icon_path_ipad'])) {
+        $variables['touch_icon_ipad'] = file_create_url($path_to_theme . '/' . String::checkPlain($config['apple_touch_icon_path_ipad']));
+      }
+
+      // iPhone retina.
+      if (isset($config['apple_touch_icon_path_iphone_retina']) && !empty($config['apple_touch_icon_path_iphone_retina'])) {
+        $variables['touch_icon_iphone_retina'] = file_create_url($path_to_theme . '/' . String::checkPlain($config['apple_touch_icon_path_iphone_retina']));
+      }
+
+      // iPad retina.
+      if (isset($config['apple_touch_icon_path_ipad_retina']) && !empty($config['apple_touch_icon_path_ipad_retina'])) {
+        $variables['touch_icon_ipad_retina'] = file_create_url($path_to_theme . '/' . String::checkPlain($config['apple_touch_icon_path_ipad_retina']));
+      }
+    }
+
+    // Fonts.
+    if (isset($config['enable_fonts']) && $config['enable_fonts'] === 1) {
+      // Google fonts.
+      if (!empty($config['font_google'])) {
+        $variables['googlefonts_url'] = Xss::filter($config['font_google']);
+      }
+
+      // Typekit.
+      if (!empty($config['font_typekit'])) {
+        $variables['typekit_id'] = String::checkPlain($config['font_typekit']);
+      }
+    }
+
+    // shortcodes classes.
+    if (isset($config['enable_shortcodes']) && $config['enable_shortcodes'] === 1) {
+      if (!empty($config['page_classes_body'])) {
+        $shortcodes = Tags::explode($config['page_classes_body']);
+        foreach ($shortcodes as $class) {
+          $variables['attributes']['class'][] = Html::getClass($class);
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for page templates.
+ */
+function at_core_preprocess_page(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Initialise attribution variable.
+  $variables['attribution'] = '';
+
+  // Process extension settings.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    // Markup overrides.
+    if (isset($config['enable_markup_overrides']) && $config['enable_markup_overrides'] === 1) {
+      // Set attribution.
+      if (isset($config['attribution_toggle']) && $config['attribution_toggle'] === 1) {
+        $variables['attribution']['#markup'] = '<div class="l-pr attribution"><div class="l-rw"><a href="http://adaptivethemes.com" class="attribution__link" target="_blank">Design by Adaptivethemes.com</a></div></div>';
+      }
+    }
+
+    // shortcodes classes.
+    if (isset($config['enable_shortcodes']) && $config['enable_shortcodes'] === 1) {
+      if (!empty($config['page_classes_page'])) {
+        $shortcodes = Tags::explode($config['page_classes_page']);
+        foreach ($shortcodes as $class) {
+          $variables['attributes']['class'][] = Html::getClass($class);
+        }
+      }
+    }
+  }
+
+  // Layout Attributes
+  // Add dynamic classes to each region wrapper (.regions).
+  // This adds two classes to every wrapper:
+  //  - "arc--[n]" describes the number of active regions in this row, e.g. "arc-2".
+  //  - "hr--[n-n etc]" describes the active regions by source order, so if there are
+  //    3 regions and the first and third regions are active the class is "hr--1-3".
+  $regions = system_region_list($theme, REGIONS_VISIBLE);
+  $active_regions = array();
+
+  // This is bad, Drupal can populate the region but not print anything, perhaps
+  // due to user permissions, such as the Tools and Search blocks on a standard install.
+  // In effect this breaks the layout, or at the very least disturbs the layout by giving
+  // false positives, which results in the wrong layout classes being generated.
+  // This is a critical issue in D8 (and D7 also): https://www.drupal.org/node/953034
+  foreach ($regions as $region_name => $region_label) {
+    if (!empty($variables['page'][$region_name])) {
+      // Call drupal_render() to determine the regions visibility.
+      if ($region = \Drupal::service('renderer')->render($variables['page'][$region_name])) {
+        $active_regions[] = $region_name;
+      }
+    }
+  }
+
+  if (!empty($active_regions)) {
+    $variables['attributes']['class'][] = 'page';
+
+    // This is where the heavy lifting takes place.
+    $layout_loaded = new LayoutLoad($theme, $active_regions);
+    $row_attributes = $layout_loaded->rowAttributes();
+
+    // Check if we have attributes to avoid a fatal error.
+    if (empty($row_attributes)) {
+      drupal_set_message(t('Bummer, something went wrong. Check the themes Appearance settings, or maybe the layout yml is borked?'), 'error');
+    }
+    else {
+      // I like this syntax better than Drupals usual habit of += shorthand, mainly because it's
+      // very obvious at a glance what we are doing here.
+      $variables = $variables + $row_attributes;
+    }
+  }
+
+  // Add all breakpoints to drupalSettings (label:media query).
+  $breakpoints_module = \Drupal::moduleHandler()->moduleExists('breakpoint');
+  if ($breakpoints_module == TRUE) {
+    if (isset($config['breakpoint_group_layout'])) {
+      $breakpoints = \Drupal::service('breakpoint.manager')->getBreakpointsByGroup($config['breakpoint_group_layout']);
+
+      foreach ($breakpoints as $breakpoint_key => $breakpoint_values) {
+        $breakpoint_safe_label = Html::getClass($breakpoint_values->getLabel());
+        $breakpoints_array[$breakpoint_safe_label] = $breakpoint_values->getMediaQuery();
+      }
+
+      $variables['#attached']['drupalSettings']['at_bp'] = $breakpoints_array;
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for region templates.
+ */
+function at_core_preprocess_region(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // This could be expensive to call so many times on the page.
+  $layout_loaded = new LayoutLoad($theme, $active_regions = NULL);
+  $region_row = $layout_loaded->regionAttributes($variables['region']);
+  if (!empty($region_row)) {
+    $variables['region_row'] = $region_row;
+  }
+
+  // Set wrapper element.
+  $variables['html_element'] = 'div';
+  if ($variables['region'] == 'content') {
+  }
+
+  // Extension settings
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    // shortcodes classes.
+    if (isset($config['enable_shortcodes']) && $config['enable_shortcodes'] === 1) {
+      if (!empty($config['page_classes_region_' . $variables['region']])) {
+        $shortcodes = Tags::explode($config['page_classes_region_' . $variables['region']]);
+        foreach ($shortcodes as $class) {
+          $variables['attributes']['class'][] = Html::getClass($class);
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for node templates.
+ */
+function at_core_preprocess_node(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+  $node = $variables['node'];
+
+  // shortcodes classes.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    if (isset($config['enable_shortcodes']) && $config['enable_shortcodes'] === 1) {
+      if (!empty($config['nodetype_classes_' . $node->getType()])) {
+        $shortcodes = Tags::explode($config['nodetype_classes_' . $node->getType()]);
+        foreach ($shortcodes as $class) {
+          $variables['attributes']['class'][] = Html::getClass($class);
+        }
+      }
+    }
+  }
+
+  // Header and Footer attributes.
+  $variables['header_attributes'] = new Attribute(array('class' => array()));
+  $variables['footer_attributes'] = new Attribute(array('class' => array()));
+
+  // Unpublished status message.
+  if ($node->isPublished() === FALSE) {
+    $variables['title_prefix']['status'] = array(
+      '#markup' => t('Node unpublished'),
+      '#prefix' => '<p class="unpublished__title clearfix" aria-label="Status message" role="contentinfo">',
+      '#suffix' => '</p>',
+    );
+  }
+
+  // Set attribute classes. TODO: move to template?
+  $variables['header_attributes']['class'][] = 'node__header';
+  $variables['title_attributes']['class'][] = 'node__title';
+  $variables['content_attributes']['class'][] = 'node__content';
+  $variables['footer_attributes']['class'][] = 'node__footer';
+
+
+  // SEE https://drupal.org/node/2004252 or a follow up issue.
+  if ($variables['display_submitted']) {
+
+    // Add a class to the header if submitted is active, so we can theme dynamcially.
+    $variables['header_attributes']['class'][] = 'node__header--has-meta';
+
+    // Initialize new attributes arrays.
+    $variables['meta_attributes'] = new Attribute(array('class' => array()));
+    $variables['meta_attributes']['class'][] = 'node__meta';
+
+    $variables['submitted_attributes'] = new Attribute(array('class' => array()));
+    $variables['submitted_attributes']['class'][] = 'node__submitted';
+
+    // Node author classes
+    $variables['author_attributes']['class'] = array();
+    $variables['author_attributes']['class'][] = 'node__author';
+
+    // Seriously, we actually need to do this?
+    //$rdf_module = \Drupal::moduleHandler()->moduleExists('rdf');
+    if (\Drupal::moduleHandler()->moduleExists('rdf') == FALSE) {
+      $variables['author_attributes']['rel'] = array();
+    }
+    $variables['author_attributes']['rel'][] = 'author';
+
+    // add a class if author picture is printing.
+    if ($author_picture = \Drupal::service('renderer')->render($variables['author_picture'])) {
+      // Does this fails if twig debugging is on. TODO ?
+      if (!empty($author_picture)) {
+        $variables['meta_attributes']['class'][] = 'node__meta--has-author-picture';
+      }
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for comment templates.
+ */
+function at_core_preprocess_comment(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  $comment = $variables['elements']['#comment'];
+  $account = comment_prepare_author($comment);
+
+  // Attributes.
+  $variables['title_attributes']['class'][] = 'comment__title';
+  $variables['content_attributes']['class'][] = 'comment__content';
+
+  // Initialize new attributes arrays.
+  $variables['meta_attributes'] = new Attribute(array('class' => array()));
+  $variables['meta_attributes']['class'][] = 'comment__meta';
+
+  $variables['submitted_attributes'] = new Attribute(array('class' => array()));
+  $variables['submitted_attributes']['class'][] = 'comment__submitted';
+
+  // add a class if user picture is printing.
+  if ($user_picture = \Drupal::service('renderer')->render($variables['user_picture'])) {
+    // Does this fails if twig debugging is on. TODO ?
+    if (!empty($user_picture)) {
+      $variables['meta_attributes']['class'][] = 'comment__meta--has-user-picture';
+    }
+  }
+
+  // Hide comment titles.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    if (isset($config['enable_markup_overrides']) && $config['enable_markup_overrides'] === 1) {
+      if (isset($config['comments_hide_title']) && $config['comments_hide_title'] === 1) {
+        $variables['title_attributes']['class'][] = 'visually-hidden';
+      }
+    }
+  }
+
+  // Unpublished status message.
+  if ($variables['status'] == 'unpublished') {
+    $variables['title_prefix']['status'] = array(
+      '#markup' => t('Comment unpublished'),
+      '#prefix' => '<p class="unpublished clearfix" aria-label="Status message" role="contentinfo">',
+      '#suffix' => '</p>',
+    );
+  }
+}
+
+
+/**
+ * Preprocess variables for block templates.
+ */
+function at_core_preprocess_block(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Extension settings.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+
+    // Responsive menu block.
+    if (isset($config['responsive_menu_block'])) {
+      if ($variables['elements']['#id'] == $config['responsive_menu_block']) {
+        $variables['attributes']['class'][] = 'rm-block'; // main class that sets this as the responsive menu block
+        $variables['attributes']['class'][] = 'js-hide';  // hides the block until the dom is ready
+        $variables['title_attributes']['class'][] = 'rm-toggle'; // set a class for the js toggles
+        $variables['title_attributes']['aria-controls'][] = 'rm-content';  // aria controls
+        $variables['content_attributes']['id'][] = 'rm-content'; // target id for aria controls
+        $variables['content_attributes']['class'][] = 'rm-block__content'; // toggle target, the div that actually opens/closes
+      }
+    }
+
+    // Markup overrides
+    if (isset($config['enable_markup_overrides']) && $config['enable_markup_overrides'] === 1) {
+
+      // Use png logo instead of svg.
+      if ($variables['base_plugin_id'] == 'system_branding_block') {
+        if (isset($config['png_logo']) && $config['png_logo'] === 1) {
+          if (\Drupal::config($theme . '.settings')->get('features.logo') === 1) {
+            if (file_exists($png_logo = $variables['directory'] . '/logo.png')) {
+              $variables['site_logo'] = file_create_url($png_logo);
+            }
+          }
+        }
+      }
+
+      // Remove login block links.
+      if ($variables['base_plugin_id'] === 'user_login_block') {
+        if ((isset($config['login_block_remove_links']) && $config['login_block_remove_links'] === 1) || (isset($config['horizontal_login_block']) && $config['horizontal_login_block'] === 1)) {
+          unset($variables['content']['user_links']);
+
+          // Add class for horizontal login.
+          if (isset($config['horizontal_login_block']) && $config['horizontal_login_block'] === 1) {
+            $variables['attributes']['class'][] = 'block-login--horizontal';
+          }
+        }
+      }
+    }
+
+    // Shortcodes classes.
+    if (isset($config['enable_shortcodes']) && $config['enable_shortcodes'] === 1) {
+      if (!empty($config['block_classes_' . $variables['elements']['#id']])) {
+        $shortcodes = Tags::explode($config['block_classes_' . $variables['elements']['#id']]);
+        foreach ($shortcodes as $class) {
+          $variables['attributes']['class'][] = Html::getClass($class);
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for field templates.
+ * SEE: https://drupal.org/node/1987398 field.module - Convert theme_ functions to Twig
+ */
+function at_core_preprocess_field(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Extension settings.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    if (isset($config['enable_images']) && $config['enable_images'] === 1) {
+
+      if ($variables['element']['#field_type'] == 'image') {
+
+        $entity_type = $variables['element']['#entity_type'];
+        $node_type = $variables['element']['#bundle'];
+        $view_mode = $variables['element']['#view_mode'];
+
+        // Reset items array to first item only. This causes only the first image to be shown, e.g. in teaser view mode.
+        if (isset($config['image_count_' . $node_type . '_' . $entity_type . '_' . $view_mode]) && $config['image_count_' . $node_type . '_' . $entity_type . '_' . $view_mode] === 1) {
+          $item = reset($variables['items']);
+          $variables['items'] = array($item);
+        }
+
+        // Captions.
+        if (isset($config['image_captions_' . $node_type . '_' . $entity_type . '_' . $view_mode]) && $config['image_captions_' . $node_type . '_' . $entity_type . '_' . $view_mode] === 1) {
+
+          //$variables['#attached']['library'][] = "filter/caption";
+
+          foreach ($variables['items'] as $delta => $item) {
+            $values = $item['content']['#item']->getValue();
+
+            if (!empty($values['title'])) {
+              $variables['items'][$delta]['caption'] = array(
+                'show' => TRUE,
+                'title' => $values['title'],
+              );
+
+              /* TODO: remove after more tests, instead we set a class in the template ("caption") and use Drupal cores figcaption CSS hack.
+              if (!empty($item['content']['#image_style'])) {
+                $style = entity_load('image_style', $item['content']['#image_style']);
+                $dimensions = array(
+                  'width' => $values['width'],
+                  'height' => $values['height'],
+                );
+                $style->transformDimensions($dimensions);
+                $variables['items'][$delta]['caption']['width'] = $dimensions['width'] . 'px';
+                $variables['items'][$delta]['caption']['height'] = $dimensions['height'] . 'px';
+              }
+              */
+            }
+            else {
+              $variables['items'][$delta]['caption'] = array(
+                'show' => FALSE,
+              );
+            }
+          }
+        }
+
+        // Image align class, provide a variable for use in field template.
+        $variables['image_align'] = '';
+        if (!empty($config['image_alignment_' . $node_type . '_' . $entity_type . '_' . $view_mode])) {
+          //$variables['attributes']['class'][] = 'align-' . $config['image_alignment_' . $node_type . '_' . $entity_type . '_' . $view_mode];
+
+          $variables['image_align'] = 'align-' . $config['image_alignment_' . $node_type . '_' . $entity_type . '_' . $view_mode];
+        }
+
+        // This is quite aggressive and it may be better to let the site fail?
+        foreach ($variables['items'] as $delta => $item) {
+          if (empty($item['content']['#image_style'])) {
+            $variables['attributes']['class'][] = 'float-none';
+          }
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for breadcrumb templates.
+ * SEE: https://drupal.org/node/1987398 field.module - Convert theme_functions to Twig
+ */
+function at_core_preprocess_breadcrumb(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // New attributes array for breadcrumb title.
+  $variables['title_attributes'] = new Attribute(array('class' => array()));
+
+  // Set attributes.
+  $variables['breadcrumb_title_hidden'] = TRUE;
+
+  // Theme settings.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    if (isset($config['enable_markup_overrides']) && $config['enable_markup_overrides'] === 1) {
+
+      // Show or hide the label.
+      if (isset($config['breadcrumb_label']) && $config['breadcrumb_label'] === 1) {
+        $variables['breadcrumb_title_hidden'] = FALSE;
+      }
+
+      // Show or hide the Home link.
+      if (isset($config['breadcrumb_home']) && $config['breadcrumb_home'] === 0) {
+
+        $first_item = array_shift($variables['breadcrumb']);
+        if (isset($first_item['text']['url']) && $first_item['text']['url'] == base_path()) {
+          array_shift($variables['breadcrumb']);
+        }
+      }
+
+      // Page title
+      if (isset($config['breadcrumb_title']) && $config['breadcrumb_title'] === 1) {
+        $title = '';
+        $request = \Drupal::request();
+        if ($route_match = \Drupal::routeMatch()) {
+          $title = \Drupal::service('title_resolver')->getTitle($request, $route_match->getRouteObject());
+        }
+        // Could be a views page?
+        if (empty($title)) {
+          if (is_callable('views_get_page_view')) {
+            if ($view = views_get_page_view()) {
+              $title = $view->getTitle();
+            }
+          }
+        }
+        if (!empty($title)) {
+          $variables['breadcrumb'][]['text'] = String::checkPlain($title);
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for user templates.
+ */
+function at_core_preprocess_user(&$variables) {
+  // Add a proper label for user profiles.
+  $user = $variables['elements']['#user'];
+  $variables['label'] = $user->getUsername();
+}
+
+
+/**
+ * Preprocess variables for user templates.
+ */
+function at_core_preprocess_views_view(&$variables) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Theme settings.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    if (isset($config['enable_markup_overrides']) && $config['enable_markup_overrides'] === 1) {
+      if (isset($config['views_hide_feedicon']) && $config['views_hide_feedicon'] === 1) {
+        $variables['feed_icons'] = array();
+      }
+    }
+  }
+}
+
+
+/**
+ * Preprocess variables for menu templates.
+ */
+function at_core_preprocess_menu(&$variables) {
+  // Add a somewhat useful class to the root UL in menus.
+  if (isset($variables['theme_hook_original'])) {
+    $menu_name = str_replace('menu__', '', $variables['theme_hook_original']);
+    $variables['attributes']['class'][] = 'menu-name-original--' . Html::getClass($menu_name);
+  }
+}
+
+
+/**
+ * Preprocess variables for forums templates.
+ */
+function at_core_preprocess_forums(&$variables) {
+  // Add a class to each forum topic table header td.
+  foreach ($variables['topics']['#header'] as $topic_list_key => $topic_list_value) {
+    $variables['topics']['#header'][$topic_list_key]['class'][] = 'forum-header__' . Html::getClass($variables['topics']['#header'][$topic_list_key]['data']);
+  }
+
+  // Add BEM classes to row items, to match the forum-list.html.twig BEM classes.
+  foreach ($variables['topics']['#rows'] as $row_key => $row_values) {
+    foreach ($row_values as $row_values_key => $row_values_value) {
+      foreach ($row_values_value['class'] as $class_key => $class_value) {
+        $variables['topics']['#rows'][$row_key][$row_values_key]['class'][] = 'forum-list__' . $class_value;
+        unset($variables['topics']['#rows'][$row_key][$row_values_key]['class'][$class_key]);
+      }
+    }
+  }
+}
+
+
+
+
+// Functions for tests and possible future usage.
+//function at_core_node_links_alter(array &$node_links, NodeInterface $node, array &$context) {}
+
+
+//
+// DEPRECATED TODO REMOVE
+//
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ * Modify the User Login block form.
+ */
+/*
+function at_core_form_user_login_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
+  $theme = \Drupal::theme()->getActiveTheme()->getName();
+  $config = \Drupal::config($theme . '.settings')->get('settings');
+
+  // Login block mods.
+  if (isset($config['enable_extensions']) && $config['enable_extensions'] === 1) {
+    if (isset($config['enable_markup_overrides']) && $config['enable_markup_overrides'] === 1) {
+
+      // Placeholders.
+      if (isset($config['login_block_placeholder_labels']) && $config['login_block_placeholder_labels'] === 1) {
+        $form['name']['#attributes']['placeholder'] = $form['name']['#title'];
+        $form['pass']['#attributes']['placeholder'] = $form['pass']['#title'];
+        $form['name']['#title_display'] = 'invisible';
+        $form['pass']['#title_display'] = 'invisible';
+      }
+    }
+  }
+}
+*/
+
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ * Modify the Search block form.
+ */
+/*
+function at_core_form_search_block_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
+  // Remove the size attribute.
+  $form['keys']['#size'] = '';
+}
+*/
+
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ * Modify the Search page form.
+ */
+/*
+function at_core_form_search_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
+  // Add the missing search-basic class so we don't have to use an ID.
+  // This has the added bonus of removing container-inline :)
+  $form['basic']['#attributes']['class'] = 'search-basic';
+}
+*/
+
+
+// Debug code to remember
+/*
+if ( $something ) {
+  debug(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10));
+}
+*/
+
+
+
+
+
+
+
+
+
+

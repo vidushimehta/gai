@@ -1,0 +1,170 @@
+
+/**
+ * @file
+ * flexible style
+ *
+ */
+
+/*Layout*/
+
+.clearfix:after {
+  clear: both;
+  content: "";
+  display: table;
+  height: 0;
+  visibility: hidden;
+}
+
+/***Styling***/
+/*Fix*/
+nav ul {
+  padding:0 !important;
+}
+li.menu-item {
+  list-style:none;
+}
+/*General*/
+img {
+    max-width: 100% !important;
+}
+p {
+  line-height: 1.34em;
+}
+p {
+  margin: 2px 11px;
+}
+
+h2 {
+  margin: 2px 0 5px;;
+}
+hr {
+  margin: 0 auto;
+}
+hr .width25 {
+  width: 25%;
+  margin: 0 auto;
+}
+hr .width50 {
+  width: 50%;
+  margin: 0 auto;
+}
+hr .width75 {
+  width: 75%;
+  margin: 0 auto;
+}
+.box {
+  background: #f5f5f5;
+  border: 1em solid #f8f8f8;
+  border-radius: 11px;
+  margin: 1em 3em;
+}
+.button {
+  display: inline-block;
+  padding: 5px 11px;
+  border-top: 1px solid #aaa;
+  border-right: 1px solid #aaa;
+  border-bottom: 3px solid #777;
+  border-left: 2px solid #555;
+  border-radius: 11px;
+  margin: 11px;
+  color: #0000ff;
+  font-weight: 700;
+  text-align: center;
+  background: #fafafa;
+}
+a.button {
+  text-decoration: none;
+}
+.button:hover {
+  border-top: 3px solid #777;
+  border-bottom: 1px solid #aaa;
+  border-radius: 11px;
+}
+
+/*Drupal elements styling*/
+.with-secondary {
+  padding-top:30px;
+}
+#site-name a {
+  font-size: 1.88em;
+  text-decoration: none;
+  color: #555;
+}
+
+#logo,
+.region-header,
+#name-and-slogan {
+  float: left;
+  height: auto;
+  margin: 0.2em;
+}
+#name-and-slogan h1{
+  margin: 0;
+}
+
+
+/*Admin*/
+.overlay-active #page-title,
+.page-node-edit #page-title {
+ font-size: 1em;
+}
+textarea, input {
+  color: #444444;
+  font-family: helvetica;
+  font-size: 1.01em;
+  line-height: 1.7em;
+}
+input[type="text"],
+input[type="email"],
+input[type="search"],
+select {
+  max-width: 100%;
+}
+.page-admin table {
+  width: 95%;
+  max-width: 1020px;
+  margin: 0 auto;
+}
+.page-admin.page-admin-modules table {
+  width: 95%;
+  max-width: 95%;
+}
+
+tr.even td {
+  background-color: #fafafa !important;
+}  
+#overlay-tabs a {
+  line-height: 1.5em !important;
+}
+
+/* Sidebar */
+aside .block:after {
+  display: block;
+  width: 98%;
+  height: 1px;
+  background: #fff;
+  content: "";
+  margin: 1em 0 2em;
+  text-align: center;
+  box-shadow: 0 2px 5px #ccc;
+}
+aside .block {
+    background: #f8fbff;
+    border-radius: 5px;
+    padding: 0 8px;
+}	
+
+/* Footer */
+.region-footer:before {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: #fff;
+  content: "";
+  margin: 1em 0;
+  text-align: center;
+  box-shadow: 0 4px 8px #aaa;
+}
+.region-footer .block {
+  padding:5px 1em;
+}
