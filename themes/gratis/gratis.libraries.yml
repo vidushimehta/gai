@@ -6,10 +6,13 @@ global-styling:
       css/hacks.css: {}
       css/color-palettes.css: {}
       css/styles.css: {}
+      css/custom.css: {}
 gratis-corescripts:
   version: 1.x
   js:
     js/site.min.js: {}
+    js/responsiveslides.min.js: {}
+    js/custom.js: {}
   dependencies:
     - core/jquery
     - core/drupal.ajax

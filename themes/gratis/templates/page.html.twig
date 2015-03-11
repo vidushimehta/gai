@@ -24,7 +24,7 @@
                     </div><!--// l-logo-->
                 {% endif %}
 
-                {% if site_slogan or site_name %}
+                <!-- {% if site_slogan or site_name %}
                     <div class="l-branding">
 
                         {% if site_name %}
@@ -38,16 +38,17 @@
                             <h3 class="site-slogan">{{ site_slogan }}</h3>
                         {% endif %}
 
-                    </div><!--//branding-->
-                {% endif %}
+                    </div>//branding
+                {% endif %} -->
 
             </header>
+            {% if page.primary_menu %}
+              {{ page.primary_menu }}
+            {% endif %} <!-- // primary_menu -->
         </div>
         <!-- // l-header -wrapper-->
 
-        {% if page.primary_menu %}
-            {{ page.primary_menu }}
-        {% endif %} <!-- // primary_menu -->
+
 
         {#for third party menu systems or modules, theme on your own. #}
         {% if page.thirdparty_menu %}
@@ -170,7 +171,20 @@
                 </div>
             </div>
         {% endif %}
-
+        <div id="content-bottom">
+            <div id="content-bottom-container" class="l-postscript l-setwidth" {% if setwidth %}  style="max-width:{{ setwidth }}" {% endif %}>
+                {% if page.content_bottom_first %}
+                    <div class="content-bottom-first">
+                        {{ page.content_bottom_first }}
+                    </div>
+                {% endif %}
+                {% if page.content_bottom_last %}
+                    <div class="content-bottom-last">
+                        {{ page.content_bottom_last }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
         <footer id="footer" role="footer" class="l-footer-wrapper">
             <div class="l-setwidth l-footer" {% if setwidth %}  style="max-width:{{ setwidth }}" {% endif %}>
 

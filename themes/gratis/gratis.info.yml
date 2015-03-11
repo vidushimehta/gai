@@ -29,6 +29,8 @@ regions:
    postscript_first: 'Postscript first'
    postscript_second: 'Postscript second'
    postscript_third: 'Postscript third'
+   content_bottom_first: 'Content bottom first'
+   content_bottom_last: 'Content bottom last'
 
 # Information added by Drupal.org packaging script on 2015-02-21
 version: '8.x-2.0-beta6+2-dev'
