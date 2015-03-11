@@ -1,0 +1,21 @@
+global-styling:
+  version: 1.x
+  css:
+    theme:
+      css/normalize.css: {}
+      css/hacks.css: {}
+      css/color-palettes.css: {}
+      css/styles.css: {}
+      css/custom.css: {}
+gratis-corescripts:
+  version: 1.x
+  js:
+    js/site.min.js: {}
+    js/responsiveslides.min.js: {}
+    js/custom.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal.ajax
+    - core/drupal
+    - core/drupalSettings
+    - core/jquery.once
