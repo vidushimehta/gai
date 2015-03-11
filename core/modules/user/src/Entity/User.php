@@ -29,7 +29,6 @@ use Drupal\user\UserInterface;
  *     "storage_schema" = "Drupal\user\UserStorageSchema",
  *     "access" = "Drupal\user\UserAccessControlHandler",
  *     "list_builder" = "Drupal\user\UserListBuilder",
- *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
  *     "views_data" = "Drupal\user\UserViewsData",
  *     "route_provider" = {
  *       "html" = "Drupal\user\Entity\UserRouteProvider",
@@ -475,7 +474,8 @@ class User extends ContentEntityBase implements UserInterface {
 
     $fields['langcode'] = BaseFieldDefinition::create('language')
       ->setLabel(t('Language code'))
-      ->setDescription(t('The user language code.'));
+      ->setDescription(t('The user language code.'))
+      ->setTranslatable(TRUE);
 
     $fields['preferred_langcode'] = BaseFieldDefinition::create('language')
       ->setLabel(t('Preferred language code'))

@@ -74,6 +74,7 @@ abstract class AccountForm extends ContentEntityForm {
     $account = $this->entity;
     $user = $this->currentUser();
     $config = \Drupal::config('user.settings');
+    $form['#cache']['tags'] = $config->getCacheTags();
 
     $language_interface = \Drupal::languageManager()->getCurrentLanguage();
     $register = $account->isAnonymous();
@@ -344,7 +345,7 @@ abstract class AccountForm extends ContentEntityForm {
    *   The current state of the form.
    */
   public function syncUserLangcode($entity_type_id, UserInterface $user, array &$form, FormStateInterface &$form_state) {
-    $user->langcode = $user->preferred_langcode;
+    $user->getUntranslated()->langcode = $user->preferred_langcode;
   }
 
   /**

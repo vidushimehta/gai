@@ -70,8 +70,19 @@ class PageCacheTagsIntegrationTest extends WebTestBase {
       ),
     ));
 
+    $cache_contexts = [
+      'language',
+      'menu.active_trail:account',
+      'menu.active_trail:footer',
+      'menu.active_trail:main',
+      'menu.active_trail:tools',
+      'theme',
+      'timezone',
+      'user.roles',
+    ];
+
     // Full node page 1.
-    $this->verifyPageCacheTags($node_1->urlInfo(), array(
+    $this->assertPageCacheContextsAndTags($node_1->urlInfo(), $cache_contexts, array(
       'rendered',
       'block_view',
       'config:block_list',
@@ -83,14 +94,6 @@ class PageCacheTagsIntegrationTest extends WebTestBase {
       'config:block.block.bartik_powered',
       'config:block.block.bartik_main_menu',
       'config:block.block.bartik_account_menu',
-      'block_plugin:system_breadcrumb_block',
-      'block_plugin:system_main_block',
-      'block_plugin:system_menu_block__account',
-      'block_plugin:system_menu_block__main',
-      'block_plugin:system_menu_block__tools',
-      'block_plugin:user_login_block',
-      'block_plugin:system_menu_block__footer',
-      'block_plugin:system_powered_by_block',
       'node_view',
       'node:' . $node_1->id(),
       'user:' . $author_1->id(),
@@ -99,10 +102,11 @@ class PageCacheTagsIntegrationTest extends WebTestBase {
       'config:system.menu.tools',
       'config:system.menu.footer',
       'config:system.menu.main',
+      'config:system.site',
     ));
 
     // Full node page 2.
-    $this->verifyPageCacheTags($node_2->urlInfo(), array(
+    $this->assertPageCacheContextsAndTags($node_2->urlInfo(), $cache_contexts, array(
       'rendered',
       'block_view',
       'config:block_list',
@@ -115,15 +119,6 @@ class PageCacheTagsIntegrationTest extends WebTestBase {
       'config:block.block.bartik_powered',
       'config:block.block.bartik_main_menu',
       'config:block.block.bartik_account_menu',
-      'block_plugin:system_breadcrumb_block',
-      'block_plugin:system_main_block',
-      'block_plugin:system_menu_block__account',
-      'block_plugin:system_menu_block__main',
-      'block_plugin:system_menu_block__tools',
-      'block_plugin:user_login_block',
-      'block_plugin:views_block__comments_recent-block_1',
-      'block_plugin:system_menu_block__footer',
-      'block_plugin:system_powered_by_block',
       'node_view',
       'node:' . $node_2->id(),
       'user:' . $author_2->id(),
@@ -132,31 +127,42 @@ class PageCacheTagsIntegrationTest extends WebTestBase {
       'config:system.menu.tools',
       'config:system.menu.footer',
       'config:system.menu.main',
+      'config:system.site',
     ));
   }
 
   /**
-   * Fills page cache for the given path, verify cache tags on page cache hit.
+   * Asserts page cache miss, then hit for the given URL; checks cache headers.
    *
    * @param \Drupal\Core\Url $url
-   *   The url
-   * @param $expected_tags
-   *   The expected cache tags for the page cache entry of the given $path.
+   *   The URL to test.
+   * @param string[] $expected_contexts
+   *   The expected cache contexts for the given URL.
+   * @param string[] $expected_tags
+   *   The expected cache tags for the given URL.
    */
-  protected function verifyPageCacheTags(Url $url, $expected_tags) {
-    // @todo Change ->drupalGet() calls to just pass $url when
-    //   https://www.drupal.org/node/2350837 gets committed
+  protected function assertPageCacheContextsAndTags(Url $url, array $expected_contexts, array $expected_tags) {
+    $absolute_url = $url->setAbsolute()->toString();
+    sort($expected_contexts);
     sort($expected_tags);
-    $this->drupalGet($url->setAbsolute()->toString());
+
+    // Assert cache miss + expected cache contexts + tags.
+    $this->drupalGet($absolute_url);
     $this->assertEqual($this->drupalGetHeader('X-Drupal-Cache'), 'MISS');
+    $actual_contexts = explode(' ', $this->drupalGetHeader('X-Drupal-Cache-Contexts'));
     $actual_tags = explode(' ', $this->drupalGetHeader('X-Drupal-Cache-Tags'));
-    sort($actual_tags);
+    $this->assertIdentical($actual_contexts, $expected_contexts);
     $this->assertIdentical($actual_tags, $expected_tags);
-    $this->drupalGet($url->setAbsolute()->toString());
+
+    // Assert cache hit + expected cache contexts + tags.
+    $this->drupalGet($absolute_url);
+    $actual_contexts = explode(' ', $this->drupalGetHeader('X-Drupal-Cache-Contexts'));
     $actual_tags = explode(' ', $this->drupalGetHeader('X-Drupal-Cache-Tags'));
-    sort($actual_tags);
     $this->assertEqual($this->drupalGetHeader('X-Drupal-Cache'), 'HIT');
+    $this->assertIdentical($actual_contexts, $expected_contexts);
     $this->assertIdentical($actual_tags, $expected_tags);
+
+    // Assert page cache item + expected cache tags.
     $cid_parts = array($url->setAbsolute()->toString(), 'html');
     $cid = implode(':', $cid_parts);
     $cache_entry = \Drupal::cache('render')->get($cid);

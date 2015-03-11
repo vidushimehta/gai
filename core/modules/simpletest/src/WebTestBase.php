@@ -27,6 +27,7 @@ use Drupal\Core\Site\Settings;
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\block\Entity\Block;
+use Drupal\node\Entity\NodeType;
 use Drupal\Core\Url;
 use Symfony\Component\HttpFoundation\Request;
 use Drupal\user\Entity\Role;
@@ -277,7 +278,7 @@ abstract class WebTestBase extends TestBase {
     if (!isset($values['type'])) {
       do {
         $id = strtolower($this->randomMachineName(8));
-      } while (node_type_load($id));
+      } while (NodeType::load($id));
     }
     else {
       $id = $values['type'];
@@ -859,8 +860,8 @@ abstract class WebTestBase extends TestBase {
       file_put_contents($directory . '/services.yml', $yaml->dump($services));
     }
     // Since Drupal is bootstrapped already, install_begin_request() will not
-    // bootstrap into DRUPAL_BOOTSTRAP_CONFIGURATION (again). Hence, we have to
-    // reload the newly written custom settings.php manually.
+    // bootstrap again. Hence, we have to reload the newly written custom
+    // settings.php manually.
     $class_loader = require DRUPAL_ROOT . '/core/vendor/autoload.php';
     Settings::initialize(DRUPAL_ROOT, $this->siteDirectory, $class_loader);
 
@@ -2733,4 +2734,16 @@ abstract class WebTestBase extends TestBase {
       return $this->getAbsoluteUrl($path);
     }
   }
+
+  /**
+   * Asserts whether an expected cache tag was present in the last response.
+   *
+   * @param string $expected_cache_tag
+   *   The expected cache tag.
+   */
+  protected function assertCacheTag($expected_cache_tag) {
+    $cache_tags = explode(' ', $this->drupalGetHeader('X-Drupal-Cache-Tags'));
+    $this->assertTrue(in_array($expected_cache_tag, $cache_tags));
+  }
+
 }
