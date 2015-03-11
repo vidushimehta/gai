@@ -8,8 +8,10 @@
 namespace Drupal\comment;
 
 use Drupal\comment\Plugin\Field\FieldType\CommentItemInterface;
+use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\String;
 use Drupal\Component\Utility\Unicode;
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\ContentEntityForm;
 use Drupal\Core\Entity\EntityManagerInterface;
@@ -78,9 +80,10 @@ class CommentForm extends ContentEntityForm {
     $entity = $this->entityManager->getStorage($comment->getCommentedEntityTypeId())->load($comment->getCommentedEntityId());
     $field_name = $comment->getFieldName();
     $field_definition = $this->entityManager->getFieldDefinitions($entity->getEntityTypeId(), $entity->bundle())[$comment->getFieldName()];
+    $config = $this->config('user.settings');
 
     // Use #comment-form as unique jump target, regardless of entity type.
-    $form['#id'] = drupal_html_id('comment_form');
+    $form['#id'] = Html::getUniqueId('comment_form');
     $form['#theme'] = array('comment_form__' . $entity->getEntityTypeId() . '__' . $entity->bundle() . '__' . $field_name, 'comment_form');
 
     $anonymous_contact = $field_definition->getSetting('anonymous');
@@ -146,9 +149,15 @@ class CommentForm extends ContentEntityForm {
       '#size' => 30,
     );
     if ($is_admin) {
+      $form['author']['name']['#type'] = 'entity_autocomplete';
+      $form['author']['name']['#target_type'] = 'user';
+      $form['author']['name']['#selection_settings'] = ['include_anonymous' => FALSE];
+      $form['author']['name']['#process_default_value'] = FALSE;
+      // The user name is validated and processed in static::buildEntity() and
+      // static::validate().
+      $form['author']['name']['#element_validate'] = array();
       $form['author']['name']['#title'] = $this->t('Authored by');
-      $form['author']['name']['#description'] = $this->t('Leave blank for %anonymous.', array('%anonymous' => $this->config('user.settings')->get('anonymous')));
-      $form['author']['name']['#autocomplete_route_name'] = 'user.autocomplete';
+      $form['author']['name']['#description'] = $this->t('Leave blank for %anonymous.', array('%anonymous' => $config->get('anonymous')));
     }
     elseif ($this->currentUser->isAuthenticated()) {
       $form['author']['name']['#type'] = 'item';
@@ -157,7 +166,7 @@ class CommentForm extends ContentEntityForm {
       $form['author']['name']['#account'] = $this->currentUser;
     }
     elseif($this->currentUser->isAnonymous()) {
-      $form['author']['name']['#attributes']['data-drupal-default-value'] = $this->config('user.settings')->get('anonymous');
+      $form['author']['name']['#attributes']['data-drupal-default-value'] = $config->get('anonymous');
     }
 
     // Add author email and homepage fields depending on the current user.
@@ -200,6 +209,8 @@ class CommentForm extends ContentEntityForm {
       ),
       '#access' => $is_admin,
     );
+
+    $form['#cache']['tags'] = Cache::mergeTags(isset($form['#cache']['tags']) ? $form['#cache']['tags'] : [],  $config->getCacheTags());
 
     return parent::form($form, $form_state, $comment);
   }
