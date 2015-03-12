@@ -132,7 +132,8 @@ function gratis_preprocess_html(&$variables) {
  * Override or insert variables into the page template.
  */
 function gratis_preprocess_page(&$variables) {
-
+  global $base_url;
+  $variables['logopath'] = $base_url .'/'. drupal_get_path('theme','acton') . 'images/logo_d8.png';
   // Set the custom grid width in a variable.
   $gridwidth = theme_get_setting('gratis_grid_container_width');
   $variables['setwidth'] = String::checkPlain($gridwidth);
@@ -377,3 +378,4 @@ function gratis_preprocess_block(&$variables) {
   $gridwidth = theme_get_setting('gratis_grid_container_width');
   $variables['setwidth'] = String::checkPlain($gridwidth);
 }
+
